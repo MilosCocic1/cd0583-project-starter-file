@@ -1,37 +1,81 @@
+"""
+Module that reads the test dataset (test_data_path) and the trained model
+(output_model_path), computes the F1 score, and writes it to
+latestscore.txt in output_model_path.
+
+Author: Miloš Ćoćić
+Date: 9.8.2026.
+"""
 import json
 import os
 import pickle
-
+from datetime import datetime
 import pandas as pd
 from sklearn.metrics import f1_score
+import dbsetup
 
-
-################# Load config.json and get path variables
-with open('config.json', 'r') as f:
+with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-model_path = os.path.join(config['output_model_path'])
-test_data_path = os.path.join(config['test_data_path'])
+output_model_path = config['output_model_path']
+test_data_path = config['test_data_path']
+
+PREDICTOR_COLUMNS = [
+    'lastmonth_activity',
+    'lastyear_activity',
+    'number_of_employees']
+TARGET_COLUMN = 'exited'
 
 
-################# Function for model scoring
-def score_model():
-    test_data = pd.read_csv(os.path.join(test_data_path, 'testdata.csv'))
-    X_test = test_data[['lastmonth_activity', 'lastyear_activity', 'number_of_employees']]
-    y_test = test_data['exited']
+def score_model(model_dir=None, test_dir=None):
+    """
+    Score the trained model against the test dataset and write the F1
+    score to latestscore.txt. Returns the F1 score as a float.
 
-    with open(os.path.join(model_path, 'trainedmodel.pkl'), 'rb') as f:
-        model = pickle.load(f)
+     Input:
+        model_dir: Directory containing trainedmodel.pkl, and where
+            latestscore.txt is written. Defaults to output_model_path.
+        test_dir: Directory of one or more .csv files to score against. Defaults to
+            test_data_path.
+    Output:
+        The F1 score: float.
+    """
+    model_dir = model_dir or output_model_path
+    test_dir = test_dir or test_data_path
 
-    predictions = model.predict(X_test)
-    f1 = f1_score(y_test, predictions)
+    test_files = [file_name for file_name in os.listdir(
+        test_dir) if file_name.endswith('.csv')]
+    test_data = pd.concat(
+        (pd.read_csv(
+            os.path.join(
+                test_dir,
+                file_name)) for file_name in test_files),
+        ignore_index=True,
+    )
 
-    os.makedirs(model_path, exist_ok=True)
-    with open(os.path.join(model_path, 'latestscore.txt'), 'w') as f:
-        f.write(str(f1))
+    with open(os.path.join(model_dir, 'trainedmodel.pkl'), 'rb') as model_file:
+        model = pickle.load(model_file)
+
+    X = test_data[PREDICTOR_COLUMNS]
+    y = test_data[TARGET_COLUMN]
+    predictions = model.predict(X)
+
+    f1 = f1_score(y, predictions)
+
+    os.makedirs(model_dir, exist_ok=True)
+    with open(
+        os.path.join(model_dir, 'latestscore.txt'), 'w', encoding='utf-8'
+    ) as score_file:
+        score_file.write(str(f1))
+
+    try:
+        dbsetup.log_model_score(float(f1), test_dir, datetime.now())
+    except Exception as exc:
+        print(
+            f"[scoring] Skipping database logging (MySQL unavailable?): {exc}")
 
     return f1
 
 
 if __name__ == '__main__':
-    score_model()
+    print(score_model())

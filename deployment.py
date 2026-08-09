@@ -1,32 +1,50 @@
+"""
+Module that copies the three artifacts that make up a "deployed model" from their
+original locations into the production deployment directory
+(prod_deployment_path):
+
+  - trainedmodel.pkl   (from output_model_path)
+  - latestscore.txt    (from output_model_path)
+  - ingestedfiles.txt  (from output_folder_path)
+
+This script doesn't create any new files, it only copies existing ones.
+
+Author: Miloš Ćoćić
+Date: 9.8.2026.
+"""
 import json
 import os
 import shutil
 
-
-################## Load config.json and correct path variable
-with open('config.json', 'r') as f:
+with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-model_path = os.path.join(config['output_model_path'])
-ingested_data_path = os.path.join(config['output_folder_path'])
-prod_deployment_path = os.path.join(config['prod_deployment_path'])
+output_folder_path = config['output_folder_path']
+output_model_path = config['output_model_path']
+prod_deployment_path = config['prod_deployment_path']
 
 
-#################### Function for deployment
-def store_model_into_pickle(model=None):
-    # Copy the latest pickle file, the latestscore.txt value,
-    # and the ingestfiles.txt file into the deployment directory
+def deploy_model():
+    """
+    Copy the trained model, its score, and the ingestion record into
+    the production deployment directory.
+    """
     os.makedirs(prod_deployment_path, exist_ok=True)
 
     files_to_copy = [
-        (os.path.join(model_path, 'trainedmodel.pkl'), os.path.join(prod_deployment_path, 'trainedmodel.pkl')),
-        (os.path.join(model_path, 'latestscore.txt'), os.path.join(prod_deployment_path, 'latestscore.txt')),
-        (os.path.join(ingested_data_path, 'ingestedfiles.txt'), os.path.join(prod_deployment_path, 'ingestedfiles.txt')),
+        (output_model_path, 'trainedmodel.pkl'),
+        (output_model_path, 'latestscore.txt'),
+        (output_folder_path, 'ingestedfiles.txt'),
     ]
 
-    for source, destination in files_to_copy:
-        shutil.copy2(source, destination)
+    for source_dir, file_name in files_to_copy:
+        shutil.copy(
+            os.path.join(source_dir, file_name),
+            os.path.join(prod_deployment_path, file_name),
+        )
+
+    return prod_deployment_path
 
 
 if __name__ == '__main__':
-    store_model_into_pickle()
+    deploy_model()
