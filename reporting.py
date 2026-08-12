@@ -14,9 +14,17 @@ summaryreport.pdf in output_model_path.
 Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
-import diagnostics
-import dbsetup
-from sklearn.metrics import confusion_matrix
+import json
+import os
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
 from reportlab.platypus import (
     Image,
     Paragraph,
@@ -25,18 +33,10 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-from reportlab.lib.units import inch
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-import pandas as pd
-import matplotlib.pyplot as plt
-import json
-import os
+from sklearn.metrics import confusion_matrix
 
-import matplotlib
-matplotlib.use('Agg')
-
+import dbsetup
+import diagnostics
 
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
@@ -81,8 +81,7 @@ def plot_confusion_matrix(file_name='confusionmatrix.png'):
 
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
-            ax.text(j, i, str(matrix[i, j]),
-                    ha='center', va='center', color='black')
+            ax.text(j, i, str(matrix[i, j]), ha='center', va='center', color='black')
 
     os.makedirs(output_model_path, exist_ok=True)
     output_path = os.path.join(output_model_path, file_name)
@@ -105,9 +104,8 @@ def plot_time_trends():
     try:
         timing_rows = dbsetup.get_timing_history()
         missing_rows = dbsetup.get_missing_data_history()
-    except Exception as exc:
-        print(
-            f"[reporting] Skipping time-trend plot (MySQL unavailable?): {exc}")
+    except Exception as exc:  
+        print(f"[reporting] Skipping time-trend plot (MySQL unavailable?): {exc}")
         return None
 
     if len(timing_rows) < 2 and len(missing_rows) < 2:
@@ -118,16 +116,10 @@ def plot_time_trends():
 
     if timing_rows:
         timing_df = pd.DataFrame(timing_rows)
-        axes[0].plot(
-            timing_df['recorded_at'],
-            timing_df['ingestion_time_seconds'],
-            marker='o',
-            label='Ingestion time (s)')
-        axes[0].plot(
-            timing_df['recorded_at'],
-            timing_df['training_time_seconds'],
-            marker='o',
-            label='Training time (s)')
+        axes[0].plot(timing_df['recorded_at'], timing_df['ingestion_time_seconds'],
+                     marker='o', label='Ingestion time (s)')
+        axes[0].plot(timing_df['recorded_at'], timing_df['training_time_seconds'],
+                     marker='o', label='Training time (s)')
         axes[0].set_title('Pipeline timing over runs')
         axes[0].set_ylabel('Seconds')
         axes[0].tick_params(axis='x', rotation=45)
@@ -136,11 +128,7 @@ def plot_time_trends():
     if missing_rows:
         missing_df = pd.DataFrame(missing_rows)
         for column, group in missing_df.groupby('column_name'):
-            axes[1].plot(
-                group['recorded_at'],
-                group['na_percent'],
-                marker='o',
-                label=column)
+            axes[1].plot(group['recorded_at'], group['na_percent'], marker='o', label=column)
         axes[1].set_title('Missing data (%) over runs')
         axes[1].set_ylabel('NA percent')
         axes[1].tick_params(axis='x', rotation=45)
@@ -188,34 +176,15 @@ def generate_pdf_report():
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(output_path, pagesize=letter)
     story = [
-        Paragraph(
-            'Attrition Risk Model - Summary Report',
-            styles['Title']),
-        Spacer(
-            1,
-            0.2 * inch),
-        Paragraph(
-            f'<b>Latest F1 score:</b> {f1_score_text}',
-            styles['Normal']),
-        Paragraph(
-            f'<b>Ingested files:</b> {ingested_files}',
-            styles['Normal']),
-        Spacer(
-            1,
-            0.2 * inch),
-        Paragraph(
-            'Confusion Matrix',
-            styles['Heading2']),
-        Image(
-            confusion_matrix_path,
-            width=4 * inch,
-            height=3.3 * inch),
-        Spacer(
-            1,
-            0.2 * inch),
-        Paragraph(
-            'Summary Statistics',
-            styles['Heading2']),
+        Paragraph('Attrition Risk Model - Summary Report', styles['Title']),
+        Spacer(1, 0.2 * inch),
+        Paragraph(f'<b>Latest F1 score:</b> {f1_score_text}', styles['Normal']),
+        Paragraph(f'<b>Ingested files:</b> {ingested_files}', styles['Normal']),
+        Spacer(1, 0.2 * inch),
+        Paragraph('Confusion Matrix', styles['Heading2']),
+        Image(confusion_matrix_path, width=4 * inch, height=3.3 * inch),
+        Spacer(1, 0.2 * inch),
+        Paragraph('Summary Statistics', styles['Heading2']),
     ]
 
     summary_table_data = [['Column', 'Mean', 'Median', 'Mode', 'Std']] + [
@@ -231,10 +200,7 @@ def generate_pdf_report():
     story.append(_styled_table(summary_table_data))
     story.append(Spacer(1, 0.2 * inch))
 
-    story.append(
-        Paragraph(
-            'Missing Data (% NA per column)',
-            styles['Heading2']))
+    story.append(Paragraph('Missing Data (% NA per column)', styles['Heading2']))
     missing_table_data = [['Column', 'NA %']] + [
         [col, f'{pct:.2f}'] for col, pct in zip(finaldata_columns, missing)
     ]
@@ -242,20 +208,13 @@ def generate_pdf_report():
     story.append(Spacer(1, 0.2 * inch))
 
     story.append(Paragraph('Dependencies', styles['Heading2']))
-    dependency_table_data = [
-        list(dependencies.columns)] + dependencies.values.tolist()
+    dependency_table_data = [list(dependencies.columns)] + dependencies.values.tolist()
     story.append(_styled_table(dependency_table_data))
 
     if time_trends_path:
         story.append(Spacer(1, 0.2 * inch))
         story.append(Paragraph('Time Trends', styles['Heading2']))
-        story.append(
-            Image(
-                time_trends_path,
-                width=6.5 *
-                inch,
-                height=2.7 *
-                inch))
+        story.append(Image(time_trends_path, width=6.5 * inch, height=2.7 * inch))
 
     doc.build(story)
 
