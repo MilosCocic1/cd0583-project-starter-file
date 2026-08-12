@@ -4,7 +4,7 @@
       0,
       1,
       1,
-      1,
+      0,
       1
     ]
   },
@@ -13,30 +13,36 @@
   },
   "summarystats": {
     "summary_statistics": [
-      [
-        165.65384615384616,
-        1502.923076923077,
-        26.884615384615383,
-        0.5769230769230769
-      ],
-      [
-        73.0,
-        955.0,
-        14.0,
-        1.0
-      ],
-      [
-        284.0332293669447,
-        2192.6449584568304,
-        31.353885785435814,
-        0.5038314736557788
-      ]
+      {
+        "column": "lastmonth_activity",
+        "mean": 5625.923076923077,
+        "median": 425.0,
+        "std": 19444.774621317832
+      },
+      {
+        "column": "lastyear_activity",
+        "mean": 763.5384615384615,
+        "median": 97.5,
+        "std": 2016.6093569309696
+      },
+      {
+        "column": "number_of_employees",
+        "mean": 457.46153846153845,
+        "median": 99.0,
+        "std": 800.604832899189
+      },
+      {
+        "column": "exited",
+        "mean": 0.5,
+        "median": 0.5,
+        "std": 0.5099019513592785
+      }
     ]
   },
   "diagnostics": {
     "execution_time": [
-      0.42367457831278443,
-      1.12170566059649
+      0.8777830563485622,
+      1.640089283697307
     ],
     "missing_data_percent": [
       0.0,
@@ -47,114 +53,129 @@
     ],
     "outdated_packages": [
       {
-        "current_version": "8.3.1",
-        "latest_version": "8.3.2",
-        "package": "click"
+        "installed_version": "8.3.1",
+        "latest_version": "8.4.2",
+        "module": "click"
       },
       {
-        "current_version": "0.12.1",
+        "installed_version": "0.12.1",
         "latest_version": "0.12.1",
-        "package": "cycler"
+        "module": "cycler"
       },
       {
-        "current_version": "3.1.3",
+        "installed_version": "3.1.3",
         "latest_version": "3.1.3",
-        "package": "Flask"
+        "module": "Flask"
       },
       {
-        "current_version": "23.0.0",
-        "latest_version": "25.3.0",
-        "package": "gunicorn"
+        "installed_version": "23.0.0",
+        "latest_version": "26.0.0",
+        "module": "gunicorn"
       },
       {
-        "current_version": "2.2.0",
+        "installed_version": "2.2.0",
         "latest_version": "2.2.0",
-        "package": "itsdangerous"
+        "module": "itsdangerous"
       },
       {
-        "current_version": "3.1.6",
+        "installed_version": "3.1.6",
         "latest_version": "3.1.6",
-        "package": "Jinja2"
+        "module": "Jinja2"
       },
       {
-        "current_version": "1.5.3",
+        "installed_version": "1.5.3",
         "latest_version": "1.5.3",
-        "package": "joblib"
+        "module": "joblib"
       },
       {
-        "current_version": "1.5.0",
+        "installed_version": "1.5.0",
         "latest_version": "1.5.0",
-        "package": "kiwisolver"
+        "module": "kiwisolver"
       },
       {
-        "current_version": "3.0.3",
+        "installed_version": "3.0.3",
         "latest_version": "3.0.3",
-        "package": "MarkupSafe"
+        "module": "MarkupSafe"
       },
       {
-        "current_version": "3.10.8",
-        "latest_version": "3.10.8",
-        "package": "matplotlib"
+        "installed_version": "3.10.8",
+        "latest_version": "3.11.1",
+        "module": "matplotlib"
       },
       {
-        "current_version": "2.3.5",
-        "latest_version": "2.4.4",
-        "package": "numpy"
+        "installed_version": "26.7.0",
+        "latest_version": "26.7.0",
+        "module": "mysql-connector-python"
       },
       {
-        "current_version": "2.3.3",
-        "latest_version": "3.0.2",
-        "package": "pandas"
+        "installed_version": "2.3.5",
+        "latest_version": "2.5.2",
+        "module": "numpy"
       },
       {
-        "current_version": "12.1.1",
-        "latest_version": "12.1.1",
-        "package": "Pillow"
+        "installed_version": "2.3.3",
+        "latest_version": "3.0.5",
+        "module": "pandas"
       },
       {
-        "current_version": "3.3.2",
+        "installed_version": "12.1.1",
+        "latest_version": "12.3.0",
+        "module": "Pillow"
+      },
+      {
+        "installed_version": "3.3.2",
         "latest_version": "3.3.2",
-        "package": "pyparsing"
+        "module": "pyparsing"
       },
       {
-        "current_version": "2.9.0.post0",
+        "installed_version": "2.9.0.post0",
         "latest_version": "2.9.0.post0",
-        "package": "python-dateutil"
+        "module": "python-dateutil"
       },
       {
-        "current_version": "2026.1.post1",
-        "latest_version": "2026.1.post1",
-        "package": "pytz"
+        "installed_version": "2026.1.post1",
+        "latest_version": "2026.3.post1",
+        "module": "pytz"
       },
       {
-        "current_version": "1.8.0",
-        "latest_version": "1.8.0",
-        "package": "scikit-learn"
+        "installed_version": "5.0.0",
+        "latest_version": "5.0.0",
+        "module": "reportlab"
       },
       {
-        "current_version": "1.16.3",
-        "latest_version": "1.17.1",
-        "package": "scipy"
+        "installed_version": "2.34.2",
+        "latest_version": "2.34.2",
+        "module": "requests"
       },
       {
-        "current_version": "0.13.2",
+        "installed_version": "1.8.0",
+        "latest_version": "1.9.0",
+        "module": "scikit-learn"
+      },
+      {
+        "installed_version": "1.16.3",
+        "latest_version": "1.18.0",
+        "module": "scipy"
+      },
+      {
+        "installed_version": "0.13.2",
         "latest_version": "0.13.2",
-        "package": "seaborn"
+        "module": "seaborn"
       },
       {
-        "current_version": "1.17.0",
+        "installed_version": "1.17.0",
         "latest_version": "1.17.0",
-        "package": "six"
+        "module": "six"
       },
       {
-        "current_version": "3.6.0",
+        "installed_version": "3.6.0",
         "latest_version": "3.6.0",
-        "package": "threadpoolctl"
+        "module": "threadpoolctl"
       },
       {
-        "current_version": "3.1.6",
+        "installed_version": "3.1.6",
         "latest_version": "3.1.8",
-        "package": "Werkzeug"
+        "module": "Werkzeug"
       }
     ]
   }

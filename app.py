@@ -1,31 +1,36 @@
-from flask import Flask, jsonify, request
+"""
+Module exposes four endpoints so colleagues can pull ML diagnostics and results
+without touching the scripts directly. Every endpoint returns HTTP 200.
+
+  POST /prediction?filepath=<csv>   -> predictions from the deployed model
+  GET  /scoring                     -> F1 score of the current model
+  GET  /summarystats                -> summary statistics of ingested data
+  GET  /diagnostics                 -> timing, missing data, dependencies
+
+Author: Miloš Ćoćić
+Date: 12.8.2026.
+"""
 import json
-import os
-
+from flask import Flask, jsonify, request
 import pandas as pd
-
 import diagnostics
 import scoring
 
-
-###################### Set up variables for use in our script
 app = Flask(__name__)
 app.secret_key = '1652d576-484a-49fd-913a-6879acfa6ba4'
 
-with open('config.json', 'r') as f:
+with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-output_model_path = os.path.join(config['output_model_path'])
 
-
-####################### Prediction Endpoint
-@app.route('/prediction', methods=['POST', 'OPTIONS'])
+@app.route('/prediction', methods=['POST'])
 def predict():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-
-    request_data = request.get_json(silent=True) or {}
-    file_path = request_data.get('filepath') or request.args.get('filepath')
+    """
+    Return predictions from the deployed model for the dataset at
+    the given file path.
+    """
+    file_path = request.args.get('filepath') or (
+        request.get_json(silent=True) or {}).get('filepath')
 
     if not file_path:
         return jsonify({'error': 'filepath is required'}), 200
@@ -35,32 +40,26 @@ def predict():
     return jsonify({'predictions': predictions}), 200
 
 
-####################### Scoring Endpoint
-@app.route('/scoring', methods=['GET', 'OPTIONS'])
+@app.route('/scoring', methods=['GET'])
 def scoring_endpoint():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-
-    score = scoring.score_model()
-    return jsonify({'f1_score': score}), 200
+    """Run scoring.py and return the F1 score."""
+    f1 = scoring.score_model()
+    return jsonify({'f1_score': f1}), 200
 
 
-####################### Summary Statistics Endpoint
-@app.route('/summarystats', methods=['GET', 'OPTIONS'])
+@app.route('/summarystats', methods=['GET'])
 def summarystats_endpoint():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-
+    """
+    Return mean/median/std for every numeric column of the ingested
+    data.
+    """
     summary_statistics = diagnostics.dataframe_summary()
     return jsonify({'summary_statistics': summary_statistics}), 200
 
 
-####################### Diagnostics Endpoint
-@app.route('/diagnostics', methods=['GET', 'OPTIONS'])
+@app.route('/diagnostics', methods=['GET'])
 def diagnostics_endpoint():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-
+    """Return timing, missing-data, and dependency diagnostics."""
     execution_times = diagnostics.execution_time()
     missing_percentages = diagnostics.missing_data()
     dependency_table = diagnostics.outdated_packages_list().to_dict(orient='records')
