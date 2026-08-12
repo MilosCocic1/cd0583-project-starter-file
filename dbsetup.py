@@ -17,7 +17,6 @@ Author: Miloš Ćoćić
 Date: 9.8.2026.
 """
 import os
-
 import mysql.connector
 from mysql.connector import Error as MySQLError
 
@@ -100,20 +99,46 @@ TABLE_STATEMENTS = {
             column_name VARCHAR(255) NOT NULL,
             mean_value FLOAT NOT NULL,
             median_value FLOAT NOT NULL,
+            mode_value FLOAT NULL,
             std_value FLOAT NOT NULL,
             recorded_at DATETIME NOT NULL
         )
     """,
 }
 
+COLUMN_MIGRATIONS = [
+    (
+        "diagnostics_summary_stats",
+        "mode_value",
+        "ALTER TABLE diagnostics_summary_stats "
+        "ADD COLUMN mode_value FLOAT NULL AFTER median_value",
+    ),
+]
+
+
+def _apply_migrations(cursor):
+    for table_name, column_name, alter_statement in COLUMN_MIGRATIONS:
+        cursor.execute(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_schema = %s AND table_name = %s AND column_name = %s",
+            (DB_NAME, table_name, column_name),
+        )
+        (column_exists,) = cursor.fetchone()
+        if not column_exists:
+            cursor.execute(alter_statement)
+
 
 def create_tables():
-    """Create every project table if it doesn't already exist."""
+    """
+    Create every project table if it doesn't already exist, and apply
+    any pending migrations to tables that already existed.
+    """
     conn = get_connection()
     try:
         cursor = conn.cursor()
         for statement in TABLE_STATEMENTS.values():
             cursor.execute(statement)
+        _apply_migrations(cursor)
         conn.commit()
         cursor.close()
     finally:
@@ -190,16 +215,16 @@ def log_missing_data(column_percentages, recorded_at):
 
 
 def log_summary_stats(stats_records, recorded_at):
-    """List of dicts with keys column, mean, median, std."""
+    """List of dicts with keys column, mean, median, mode, std."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.executemany(
             "INSERT INTO diagnostics_summary_stats "
-            "(column_name, mean_value, median_value, std_value, recorded_at) "
-            "VALUES (%s, %s, %s, %s, %s)",
+            "(column_name, mean_value, median_value, mode_value, std_value, recorded_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
             [
-                (r["column"], r["mean"], r["median"], r["std"], recorded_at)
+                (r["column"], r["mean"], r["median"], r.get("mode"), r["std"], recorded_at)
                 for r in stats_records
             ],
         )

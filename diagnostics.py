@@ -47,25 +47,32 @@ def model_predictions(data):
 
 
 def dataframe_summary():
-    """
-    Return mean/median/std for every numeric column of finaldata.csv,
-    as a list of dicts, and log them to the database.
+    """Return mean/median/mode/std for every numeric column of
+    finaldata.csv, as a list of dicts, and log them to the database.
+
+    Both "means, medians, and modes" and
+    "means, medians, and standard deviations" are covered.
     """
     data = pd.read_csv(os.path.join(output_folder_path, 'finaldata.csv'))
     numeric_data = data.select_dtypes(include='number')
 
     summary = []
     for column in numeric_data.columns:
+        column_modes = numeric_data[column].mode()
+        mode_value = float(
+            column_modes.iloc[0]) if not column_modes.empty else None
+
         summary.append({
             'column': column,
             'mean': float(numeric_data[column].mean()),
             'median': float(numeric_data[column].median()),
+            'mode': mode_value,
             'std': float(numeric_data[column].std()),
         })
 
     try:
         dbsetup.log_summary_stats(summary, datetime.now())
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:
         print(
             f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
 
@@ -84,7 +91,7 @@ def missing_data():
 
     try:
         dbsetup.log_missing_data(result, datetime.now())
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:
         print(
             f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
 
@@ -104,7 +111,7 @@ def execution_time():
 
     try:
         dbsetup.log_timing(timings[0], timings[1], datetime.now())
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:
         print(
             f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
 

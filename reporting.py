@@ -14,8 +14,8 @@ summaryreport.pdf in output_model_path.
 Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
-import json
-import os
+import diagnostics
+import dbsetup
 from sklearn.metrics import confusion_matrix
 from reportlab.platypus import (
     Image,
@@ -31,10 +31,11 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
+import os
+
 import matplotlib
 matplotlib.use('Agg')
-import diagnostics
-import dbsetup
 
 
 with open('config.json', 'r', encoding='utf-8') as f:
@@ -56,10 +57,13 @@ def _read_test_data():
 
 
 def plot_confusion_matrix(file_name='confusionmatrix.png'):
-    """
-    Build a confusion matrix comparing the deployed model's
+    """Build a confusion matrix comparing the deployed model's
     predictions on the test data against the actual outcomes, and save
     it as `file_name` in output_model_path.
+
+    `file_name` is overridable so fullprocess.py can save the
+    post-automation matrix as confusionmatrix2.png without overwriting
+    the one generated during Step 4.
     """
     test_data = _read_test_data()
     actual = test_data[TARGET_COLUMN]
@@ -90,10 +94,10 @@ def plot_confusion_matrix(file_name='confusionmatrix.png'):
 
 
 def plot_time_trends():
-    """
-    Plot ingestion/training timing and per-column NA-percentage
+    """Plot ingestion/training timing and per-column NA-percentage
     across every run recorded in the MySQL diagnostics tables, saved as
     timetrends.png in output_model_path.
+
     Returns the output path, or None if there isn't enough history yet
     (fewer than two runs, or the database is unreachable) to plot a
     trend.
@@ -101,7 +105,7 @@ def plot_time_trends():
     try:
         timing_rows = dbsetup.get_timing_history()
         missing_rows = dbsetup.get_missing_data_history()
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:
         print(
             f"[reporting] Skipping time-trend plot (MySQL unavailable?): {exc}")
         return None
@@ -152,12 +156,10 @@ def plot_time_trends():
 
 
 def generate_pdf_report():
-    """
-    Combine the confusion matrix, the F1 score, summary statistics,
+    """Combine the confusion matrix, the F1 score, summary statistics,
     missing-data diagnostics, dependency versions, the ingested-files
     record, and (when available) the time-trend plot into a single PDF
-    report, saved as summaryreport.pdf in output_model_path.
-    """
+    report, saved as summaryreport.pdf in output_model_path."""
     confusion_matrix_path = plot_confusion_matrix()
     time_trends_path = plot_time_trends()
 
@@ -216,13 +218,16 @@ def generate_pdf_report():
             styles['Heading2']),
     ]
 
-    summary_table_data = [['Column',
-                           'Mean',
-                           'Median',
-                           'Std']] + [[row['column'],
-                                       f"{row['mean']:.2f}",
-                                       f"{row['median']:.2f}",
-                                       f"{row['std']:.2f}"] for row in summary_stats]
+    summary_table_data = [['Column', 'Mean', 'Median', 'Mode', 'Std']] + [
+        [
+            row['column'],
+            f"{row['mean']:.2f}",
+            f"{row['median']:.2f}",
+            f"{row['mode']:.2f}" if row['mode'] is not None else 'N/A',
+            f"{row['std']:.2f}",
+        ]
+        for row in summary_stats
+    ]
     story.append(_styled_table(summary_table_data))
     story.append(Spacer(1, 0.2 * inch))
 
