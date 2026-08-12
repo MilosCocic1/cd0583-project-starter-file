@@ -1,104 +1,161 @@
+"""
+Module that provides four diagnostic capabilities, used both by app.py's API
+endpoints and by fullprocess.py:
+
+  - model_predictions(data)   -> predictions from the deployed model
+  - dataframe_summary()       -> mean/median/std for each numeric column
+  - missing_data()            -> percent of NA values per column
+  - execution_time()          -> timing (seconds) of ingestion + training
+  - outdated_packages_list()  -> installed vs. latest version per dependency
+
+Author: Miloš Ćoćić
+Date: 12.8.2026.
+"""
 import json
 import os
 import pickle
 import subprocess
 import sys
 import timeit
-
+from datetime import datetime
+from importlib import metadata
 import pandas as pd
+import dbsetup
 
-
-################## Load config.json and get environment variables
-with open('config.json', 'r') as f:
+with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-output_folder_path = os.path.join(config['output_folder_path'])
-prod_deployment_path = os.path.join(config['prod_deployment_path'])
+output_folder_path = config['output_folder_path']
+prod_deployment_path = config['prod_deployment_path']
 
-FEATURE_COLUMNS = ['lastmonth_activity', 'lastyear_activity', 'number_of_employees']
-TARGET_COLUMN = 'exited'
+PREDICTOR_COLUMNS = [
+    'lastmonth_activity',
+    'lastyear_activity',
+    'number_of_employees']
 
 
-################## Function to get model predictions
-def model_predictions(test_data):
-    # Read the deployed model and a dataset, calculate predictions
-    with open(os.path.join(prod_deployment_path, 'trainedmodel.pkl'), 'rb') as f:
-        model = pickle.load(f)
+def model_predictions(data):
+    """
+    Return a list of predictions made by the deployed model for the
+    rows of the given DataFrame.
+    """
+    with open(os.path.join(prod_deployment_path, 'trainedmodel.pkl'), 'rb') as model_file:
+        model = pickle.load(model_file)
 
-    predictions = model.predict(test_data[FEATURE_COLUMNS])
+    predictions = model.predict(data[PREDICTOR_COLUMNS])
     return predictions.tolist()
 
 
-################## Function to get summary statistics
 def dataframe_summary():
-    # Calculate summary statistics here
+    """
+    Return mean/median/std for every numeric column of finaldata.csv,
+    as a list of dicts, and log them to the database.
+    """
     data = pd.read_csv(os.path.join(output_folder_path, 'finaldata.csv'))
-    numeric_data = data.select_dtypes(include=['number'])
+    numeric_data = data.select_dtypes(include='number')
 
-    means = numeric_data.mean().tolist()
-    medians = numeric_data.median().tolist()
-    stds = numeric_data.std().tolist()
+    summary = []
+    for column in numeric_data.columns:
+        summary.append({
+            'column': column,
+            'mean': float(numeric_data[column].mean()),
+            'median': float(numeric_data[column].median()),
+            'std': float(numeric_data[column].std()),
+        })
 
-    return [means, medians, stds]
+    try:
+        dbsetup.log_summary_stats(summary, datetime.now())
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(
+            f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
+
+    return summary
 
 
-################## Function to get percent of missing data
 def missing_data():
+    """
+    Return the percentage of NA values in each column of
+    finaldata.csv, and log them to the database.
+    """
     data = pd.read_csv(os.path.join(output_folder_path, 'finaldata.csv'))
-    return (data.isna().mean() * 100).tolist()
+
+    na_percent = (data.isna().sum() / len(data) * 100).round(2)
+    result = {column: float(value) for column, value in na_percent.items()}
+
+    try:
+        dbsetup.log_missing_data(result, datetime.now())
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(
+            f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
+
+    return list(result.values())
 
 
-##################Function to get timings
 def execution_time():
-    # Calculate timing of ingestion.py and training.py
-    start_time = timeit.default_timer()
-    subprocess.run([sys.executable, 'ingestion.py'], check=True)
-    ingestion_time = timeit.default_timer() - start_time
+    """
+    Time how long ingestion.py and training.py each take to run (in
+    seconds), and log the timings to the database.
+    """
+    timings = []
+    for script in ('ingestion.py', 'training.py'):
+        start_time = timeit.default_timer()
+        subprocess.run([sys.executable, script], check=True)
+        timings.append(timeit.default_timer() - start_time)
 
-    start_time = timeit.default_timer()
-    subprocess.run([sys.executable, 'training.py'], check=True)
-    training_time = timeit.default_timer() - start_time
+    try:
+        dbsetup.log_timing(timings[0], timings[1], datetime.now())
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(
+            f"[diagnostics] Skipping database logging (MySQL unavailable?): {exc}")
 
-    return [ingestion_time, training_time]
+    return timings
 
 
-################## Function to check dependencies
 def outdated_packages_list():
-    # Get a list of current and latest package versions
-    requirements = {}
-    with open('requirements.txt', 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or '==' not in line:
-                continue
-            package, version = line.split('==', 1)
-            requirements[package] = version
+    """
+    Return a DataFrame with one row per module in requirements.txt,
+    showing its installed version and the latest version available on
+    PyPI, using `pip list --outdated` as the source of truth.
+    """
+    with open('requirements.txt', 'r', encoding='utf-8') as requirements_file:
+        requirement_lines = [
+            line.strip() for line in requirements_file if line.strip()
+        ]
 
-    result = subprocess.run(
-        [sys.executable, '-m', 'pip', 'list', '--outdated', '--format=json'],
-        check=True,
-        capture_output=True,
-        text=True,
+    module_names = [line.split('==')[0] for line in requirement_lines]
+
+    outdated_raw = subprocess.check_output(
+        [sys.executable, '-m', 'pip', 'list', '--outdated', '--format=json']
     )
-    outdated_packages = {
-        item['name']: item['latest_version']
-        for item in json.loads(result.stdout or '[]')
+    outdated_by_name = {
+        pkg['name'].lower(): pkg['latest_version']
+        for pkg in json.loads(outdated_raw)
     }
 
     rows = []
-    for package, current_version in requirements.items():
+    for name in module_names:
+        try:
+            installed_version = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            installed_version = 'not installed'
+
+        latest_version = outdated_by_name.get(name.lower(), installed_version)
+
         rows.append({
-            'package': package,
-            'current_version': current_version,
-            'latest_version': outdated_packages.get(package, current_version),
+            'module': name,
+            'installed_version': installed_version,
+            'latest_version': latest_version,
         })
 
     return pd.DataFrame(rows)
 
 
 if __name__ == '__main__':
-    data = pd.read_csv(os.path.join(output_folder_path, 'finaldata.csv'))
-    print(model_predictions(data))
+    input_data = pd.read_csv(
+        os.path.join(
+            config['test_data_path'],
+            'testdata.csv'))
+    print(model_predictions(input_data))
     print(dataframe_summary())
     print(missing_data())
     print(execution_time())
