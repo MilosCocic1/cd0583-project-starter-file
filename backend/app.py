@@ -7,6 +7,9 @@ without touching the scripts directly. Every endpoint returns HTTP 200.
   GET  /summarystats                -> summary statistics of ingested data
   GET  /diagnostics                 -> timing, missing data, dependencies
 
+The read-only JSON API for the monitoring dashboard lives in api.py and
+is registered under /api.
+
 Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
@@ -17,9 +20,11 @@ from flask import Flask, jsonify, request
 import pandas as pd
 import diagnostics
 import scoring
+from api import api
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+app.register_blueprint(api)
 
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
