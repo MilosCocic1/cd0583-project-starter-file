@@ -73,6 +73,7 @@ TABLE_STATEMENTS = {
         CREATE TABLE IF NOT EXISTS model_scores (
             id INT AUTO_INCREMENT PRIMARY KEY,
             f1_score FLOAT NOT NULL,
+            auc_score FLOAT NULL,
             dataset_source VARCHAR(255) NOT NULL,
             recorded_at DATETIME NOT NULL
         )
@@ -112,6 +113,12 @@ COLUMN_MIGRATIONS = [
         "mode_value",
         "ALTER TABLE diagnostics_summary_stats "
         "ADD COLUMN mode_value FLOAT NULL AFTER median_value",
+    ),
+    (
+        "model_scores",
+        "auc_score",
+        "ALTER TABLE model_scores "
+        "ADD COLUMN auc_score FLOAT NULL AFTER f1_score",
     ),
 ]
 
@@ -166,15 +173,19 @@ def log_ingested_files(file_names, source_folder, recorded_at):
         conn.close()
 
 
-def log_model_score(f1_score, dataset_source, recorded_at):
-    """Insert one row into model_scores for a scoring run."""
+def log_model_score(f1_score, dataset_source, recorded_at, auc_score=None):
+    """
+    Insert one row into model_scores for a scoring run. auc_score is
+    None when AUC is undefined (the scored data has only one class).
+    """
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO model_scores (f1_score, dataset_source, recorded_at) "
-            "VALUES (%s, %s, %s)",
-            (f1_score, dataset_source, recorded_at),
+            "INSERT INTO model_scores "
+            "(f1_score, auc_score, dataset_source, recorded_at) "
+            "VALUES (%s, %s, %s, %s)",
+            (f1_score, auc_score, dataset_source, recorded_at),
         )
         conn.commit()
         cursor.close()

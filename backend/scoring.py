@@ -1,7 +1,8 @@
 """
 Module that reads the test dataset (test_data_path) and the trained model
 (output_model_path), computes the F1 score, and writes it to
-latestscore.txt in output_model_path.
+latestscore.txt in output_model_path. The F1 and AUC scores are also
+logged to the model_scores table.
 
 Author: Miloš Ćoćić
 Date: 9.8.2026.
@@ -11,7 +12,7 @@ import os
 import pickle
 from datetime import datetime
 import pandas as pd
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
 import dbsetup
 
 with open('config.json', 'r', encoding='utf-8') as f:
@@ -65,6 +66,12 @@ def score_model(model_dir=None, test_dir=None, write_score=True):
 
     f1 = f1_score(y, predictions)
 
+    # AUC needs both classes in y; with only one it is undefined.
+    if y.nunique() > 1:
+        auc = float(roc_auc_score(y, model.predict_proba(X)[:, 1]))
+    else:
+        auc = None
+
     if write_score:
         os.makedirs(model_dir, exist_ok=True)
         with open(
@@ -73,7 +80,8 @@ def score_model(model_dir=None, test_dir=None, write_score=True):
             score_file.write(str(f1))
 
     try:
-        dbsetup.log_model_score(float(f1), test_dir, datetime.now())
+        dbsetup.log_model_score(
+            float(f1), test_dir, datetime.now(), auc_score=auc)
     except Exception as exc:
         print(
             f"[scoring] Skipping database logging (MySQL unavailable?): {exc}")
