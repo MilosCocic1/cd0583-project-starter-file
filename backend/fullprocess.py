@@ -17,6 +17,8 @@ needs to be refreshed:
      (confusionmatrix2.png, apireturns2.txt) for the newly deployed
      model.
 
+Every run, including failed ones, is logged to the pipeline_runs table.
+
 Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
@@ -25,6 +27,7 @@ import os
 import shutil
 from datetime import datetime
 import apicalls
+import dbsetup
 import deployment
 import ingestion
 import reporting
@@ -67,8 +70,10 @@ def get_new_files():
 def check_for_model_drift():
     """
     Score the currently deployed model against the freshly ingested
-    data and compare it to the score it was deployed with. Returns True
-    if the new score is lower than the recorded one.
+    data and compare it to the score it was deployed with. Returns a
+    tuple (drift_detected, recorded_score, new_score), where
+    drift_detected is True if the new score is lower than the recorded
+    one.
     """
     score_record_path = os.path.join(prod_deployment_path, 'latestscore.txt')
     with open(score_record_path, 'r', encoding='utf-8') as score_file:
@@ -83,22 +88,28 @@ def check_for_model_drift():
     print(f"[fullprocess] Deployed model score was {recorded_score}, "
           f"scores {new_score} on the latest data.")
 
-    return new_score < recorded_score
+    return new_score < recorded_score, recorded_score, new_score
 
 
-def main():
+def run_pipeline(run):
     """
-    Run all functions in reasonable order.
+    Run all functions in reasonable order, filling in `run` (see main())
+    along the way. Returns the run status: 'no_new_data', 'no_drift' or
+    'retrained'.
     """
     new_files = get_new_files()
     if not new_files:
         print("[fullprocess] No new data found. Nothing to do.")
-        return
+        return 'no_new_data'
 
+    run['new_files'] = ','.join(new_files)
     print(f"[fullprocess] New data found: {new_files}. Ingesting...")
     ingestion.merge_multiple_dataframe()
 
-    if not check_for_model_drift():
+    drift_detected, run['deployed_score'], run['new_data_score'] = check_for_model_drift()
+    run['drift_detected'] = drift_detected
+
+    if not drift_detected:
         print("[fullprocess] No model drift detected. Keeping the current model.")
         # Mark the new files as seen, so the next cron run doesn't treat
         # them as new data and repeat the same drift check.
@@ -106,12 +117,14 @@ def main():
             os.path.join(output_folder_path, 'ingestedfiles.txt'),
             os.path.join(prod_deployment_path, 'ingestedfiles.txt'),
         )
-        return
+        return 'no_drift'
 
     print("[fullprocess] Model drift detected. Retraining and redeploying...")
     training.train_model()
-    scoring.score_model()
+    run['new_model_score'] = scoring.score_model()
     deployment.deploy_model()
+    run['retrained'] = True
+    run['model_version'] = deployment.get_model_version()
 
     print("[fullprocess] Regenerating reporting artifacts for the new model...")
     reporting.plot_confusion_matrix(file_name='confusionmatrix2.png')
@@ -125,6 +138,32 @@ def main():
             f"[fullprocess] Skipping apicalls.py (is app.py running?): {exc}")
 
     print(f"[fullprocess] Done at {datetime.now().isoformat()}.")
+    return 'retrained'
+
+
+def main():
+    """
+    Run the pipeline and log the outcome to the pipeline_runs table,
+    whether the run succeeds or fails.
+    """
+    run = {column: None for column in dbsetup.PIPELINE_RUN_COLUMNS}
+    run['started_at'] = datetime.now()
+    run['retrained'] = False
+    run['model_version'] = deployment.get_model_version()
+
+    try:
+        run['status'] = run_pipeline(run)
+    except Exception as exc:
+        run['status'] = 'failed'
+        run['error_message'] = repr(exc)
+        raise
+    finally:
+        run['finished_at'] = datetime.now()
+        try:
+            dbsetup.log_pipeline_run(run)
+        except Exception as exc:
+            print(
+                f"[fullprocess] Skipping database logging (MySQL unavailable?): {exc}")
 
 
 if __name__ == '__main__':

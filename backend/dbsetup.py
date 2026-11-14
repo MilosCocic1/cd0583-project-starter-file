@@ -105,6 +105,22 @@ TABLE_STATEMENTS = {
             recorded_at DATETIME NOT NULL
         )
     """,
+    "pipeline_runs": """
+        CREATE TABLE IF NOT EXISTS pipeline_runs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            started_at DATETIME NOT NULL,
+            finished_at DATETIME NOT NULL,
+            status VARCHAR(32) NOT NULL,
+            new_files TEXT NULL,
+            deployed_score FLOAT NULL,
+            new_data_score FLOAT NULL,
+            drift_detected BOOLEAN NULL,
+            retrained BOOLEAN NOT NULL,
+            new_model_score FLOAT NULL,
+            model_version INT NULL,
+            error_message TEXT NULL
+        )
+    """,
 }
 
 COLUMN_MIGRATIONS = [
@@ -238,6 +254,32 @@ def log_summary_stats(stats_records, recorded_at):
                 (r["column"], r["mean"], r["median"], r.get("mode"), r["std"], recorded_at)
                 for r in stats_records
             ],
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+
+
+PIPELINE_RUN_COLUMNS = [
+    "started_at", "finished_at", "status", "new_files", "deployed_score",
+    "new_data_score", "drift_detected", "retrained", "new_model_score",
+    "model_version", "error_message",
+]
+
+
+def log_pipeline_run(run):
+    """
+    Insert one row into pipeline_runs for a fullprocess.py run. `run` is
+    a dict with a key for every name in PIPELINE_RUN_COLUMNS.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"INSERT INTO pipeline_runs ({', '.join(PIPELINE_RUN_COLUMNS)}) "
+            f"VALUES ({', '.join(['%s'] * len(PIPELINE_RUN_COLUMNS))})",
+            tuple(run[column] for column in PIPELINE_RUN_COLUMNS),
         )
         conn.commit()
         cursor.close()
