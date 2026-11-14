@@ -7,7 +7,8 @@ original locations into the production deployment directory
   - latestscore.txt    (from output_model_path)
   - ingestedfiles.txt  (from output_folder_path)
 
-This script doesn't create any new files, it only copies existing ones.
+It also writes modelversion.txt, a counter that goes up by one on every
+deployment, so each deployed model can be identified (v1, v2, ...).
 
 Author: Miloš Ćoćić
 Date: 9.8.2026.
@@ -24,12 +25,26 @@ output_model_path = config['output_model_path']
 prod_deployment_path = config['prod_deployment_path']
 
 
+def get_model_version():
+    """
+    Return the version number of the currently deployed model, read
+    from prod_deployment_path/modelversion.txt (0 if nothing has been
+    deployed yet).
+    """
+    version_path = os.path.join(prod_deployment_path, 'modelversion.txt')
+    if not os.path.exists(version_path):
+        return 0
+    with open(version_path, 'r', encoding='utf-8') as version_file:
+        return int(version_file.read().strip())
+
+
 def deploy_model():
     """
     Copy the trained model, its score, and the ingestion record into
-    the production deployment directory.
+    the production deployment directory, and bump the model version.
     """
     os.makedirs(prod_deployment_path, exist_ok=True)
+    new_version = get_model_version() + 1
 
     files_to_copy = [
         (output_model_path, 'trainedmodel.pkl'),
@@ -42,6 +57,11 @@ def deploy_model():
             os.path.join(source_dir, file_name),
             os.path.join(prod_deployment_path, file_name),
         )
+
+    with open(
+        os.path.join(prod_deployment_path, 'modelversion.txt'), 'w', encoding='utf-8'
+    ) as version_file:
+        version_file.write(str(new_version))
 
     return prod_deployment_path
 
