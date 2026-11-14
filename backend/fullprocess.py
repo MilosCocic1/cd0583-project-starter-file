@@ -10,7 +10,8 @@ needs to be refreshed:
      model drift: score the *currently deployed* model against the
      freshly ingested data and compare it (raw comparison) to the score
      that was recorded when it was deployed. If the new score isn't
-     lower, the model is still fine -- stop here.
+     lower, the model is still fine -- record the new files as seen
+     and stop here.
   3. If drift is detected, retrain (training.py) and redeploy
      (deployment.py), then regenerate reporting artifacts
      (confusionmatrix2.png, apireturns2.txt) for the newly deployed
@@ -21,6 +22,7 @@ Date: 12.8.2026.
 """
 import json
 import os
+import shutil
 from datetime import datetime
 import apicalls
 import deployment
@@ -98,6 +100,12 @@ def main():
 
     if not check_for_model_drift():
         print("[fullprocess] No model drift detected. Keeping the current model.")
+        # Mark the new files as seen, so the next cron run doesn't treat
+        # them as new data and repeat the same drift check.
+        shutil.copy(
+            os.path.join(output_folder_path, 'ingestedfiles.txt'),
+            os.path.join(prod_deployment_path, 'ingestedfiles.txt'),
+        )
         return
 
     print("[fullprocess] Model drift detected. Retraining and redeploying...")
