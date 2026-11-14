@@ -319,6 +319,73 @@ def get_missing_data_history(limit=500):
         conn.close()
 
 
+def get_pipeline_runs(limit=20, include_idle=False):
+    """
+    Return up to `limit` of the most recent pipeline_runs rows, newest
+    first. Runs that found no new data are left out unless
+    include_idle is True.
+    """
+    where = "" if include_idle else "WHERE status <> 'no_new_data' "
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            f"SELECT id, {', '.join(PIPELINE_RUN_COLUMNS)} FROM pipeline_runs "
+            f"{where}ORDER BY id DESC LIMIT %s",
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+    finally:
+        conn.close()
+
+
+def get_latest_pipeline_run(statuses=None):
+    """
+    Return the most recent pipeline_runs row, optionally only among
+    runs whose status is in `statuses`. Returns None if there is none.
+    """
+    where = ""
+    params = ()
+    if statuses:
+        where = f"WHERE status IN ({', '.join(['%s'] * len(statuses))}) "
+        params = tuple(statuses)
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            f"SELECT id, {', '.join(PIPELINE_RUN_COLUMNS)} FROM pipeline_runs "
+            f"{where}ORDER BY id DESC LIMIT 1",
+            params,
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return row
+    finally:
+        conn.close()
+
+
+def get_model_scores(limit=100):
+    """
+    Return up to `limit` of the most recent model_scores rows, oldest
+    first, so they can be plotted as a time series.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, f1_score, auc_score, dataset_source, recorded_at "
+            "FROM model_scores ORDER BY id DESC LIMIT %s",
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return list(reversed(rows))
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     try:
         setup_database()
