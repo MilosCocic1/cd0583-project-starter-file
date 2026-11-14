@@ -1,1 +1,0 @@
-*/10 * * * * cd /workspaces/cd0583-project-starter-file && /usr/local/bin/python /workspaces/cd0583-project-starter-file/fullprocess.py
