@@ -73,7 +73,9 @@ def check_for_model_drift():
         recorded_score = float(score_file.read().strip())
 
     new_score = scoring.score_model(
-        model_dir=prod_deployment_path, test_dir=output_folder_path
+        model_dir=prod_deployment_path,
+        test_dir=output_folder_path,
+        write_score=False,
     )
 
     print(f"[fullprocess] Deployed model score was {recorded_score}, "

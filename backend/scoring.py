@@ -27,7 +27,7 @@ PREDICTOR_COLUMNS = [
 TARGET_COLUMN = 'exited'
 
 
-def score_model(model_dir=None, test_dir=None):
+def score_model(model_dir=None, test_dir=None, write_score=True):
     """
     Score the trained model against the test dataset and write the F1
     score to latestscore.txt. Returns the F1 score as a float.
@@ -37,6 +37,9 @@ def score_model(model_dir=None, test_dir=None):
             latestscore.txt is written. Defaults to output_model_path.
         test_dir: Directory of one or more .csv files to score against. Defaults to
             test_data_path.
+        write_score: If False, latestscore.txt is left untouched. Used by
+            the drift check, which must not overwrite the score the
+            deployed model was deployed with.
     Output:
         The F1 score: float.
     """
@@ -62,11 +65,12 @@ def score_model(model_dir=None, test_dir=None):
 
     f1 = f1_score(y, predictions)
 
-    os.makedirs(model_dir, exist_ok=True)
-    with open(
-        os.path.join(model_dir, 'latestscore.txt'), 'w', encoding='utf-8'
-    ) as score_file:
-        score_file.write(str(f1))
+    if write_score:
+        os.makedirs(model_dir, exist_ok=True)
+        with open(
+            os.path.join(model_dir, 'latestscore.txt'), 'w', encoding='utf-8'
+        ) as score_file:
+            score_file.write(str(f1))
 
     try:
         dbsetup.log_model_score(float(f1), test_dir, datetime.now())
