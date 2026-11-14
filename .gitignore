@@ -249,8 +249,8 @@ cython_debug/
 .AppleDouble
 .LSOverride
 
-# Icon must end with two \r
-Icon
+# macOS folder icon files are named "Icon\r"; "?" matches the \r
+Icon?
 
 
 # Thumbnails
