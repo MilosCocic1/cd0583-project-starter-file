@@ -11,13 +11,15 @@ Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
 import json
+import os
+import secrets
 from flask import Flask, jsonify, request
 import pandas as pd
 import diagnostics
 import scoring
 
 app = Flask(__name__)
-app.secret_key = '1652d576-484a-49fd-913a-6879acfa6ba4'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
@@ -72,4 +74,9 @@ def diagnostics_endpoint():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True, threaded=True)
+    app.run(
+        host='0.0.0.0',
+        port=8000,
+        debug=os.environ.get('FLASK_DEBUG') == '1',
+        threaded=True,
+    )
