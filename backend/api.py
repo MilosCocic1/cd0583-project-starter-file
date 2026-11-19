@@ -103,7 +103,7 @@ def drift():
     """Return the deployed model's version and score, the last run that
     actually checked for drift, and the last run of any kind (so the
     dashboard can show whether the scheduler is still running)."""
-    last_check = dbsetup.get_latest_pipeline_run(statuses=('no_drift', 'retrained'))
+    last_check = dbsetup.get_latest_pipeline_run(statuses=('no_drift', 'rejected', 'retrained'))
     last_run = dbsetup.get_latest_pipeline_run()
 
     return jsonify({

@@ -22,6 +22,7 @@ export function formatTimeAgo(iso: string, now: number) {
 export const STATUS_DISPLAY: Record<RunStatus, { label: string; icon: string; tone: string }> = {
   no_new_data: { label: 'No new data', icon: '○', tone: 'neutral' },
   no_drift: { label: 'No drift', icon: '✓', tone: 'good' },
+  rejected: { label: 'Kept current model', icon: '⊘', tone: 'warning' },
   retrained: { label: 'Retrained', icon: '↻', tone: 'warning' },
   failed: { label: 'Failed', icon: '✕', tone: 'critical' },
 }

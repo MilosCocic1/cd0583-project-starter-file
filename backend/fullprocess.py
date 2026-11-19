@@ -12,10 +12,12 @@ needs to be refreshed:
      that was recorded when it was deployed. If the new score isn't
      lower, the model is still fine -- record the new files as seen
      and stop here.
-  3. If drift is detected, retrain (training.py) and redeploy
-     (deployment.py), then regenerate reporting artifacts
-     (confusionmatrix2.png, apireturns2.txt) for the newly deployed
-     model.
+  3. If drift is detected, retrain (training.py) and score the new
+     model on the test data. Deploy it (deployment.py) only if it scores
+     at least as well as the deployed model did on the same test data;
+     otherwise keep the current model, so an automatic retrain can never
+     make production worse. After a deployment, regenerate reporting
+     artifacts (confusionmatrix2.png, apireturns2.txt) for the new model.
 
 Every run, including failed ones, is logged to the pipeline_runs table.
 
@@ -91,11 +93,24 @@ def check_for_model_drift():
     return new_score < recorded_score, recorded_score, new_score
 
 
+def mark_new_files_as_seen():
+    """
+    Copy the ingestion record into prod_deployment_path without
+    deploying a model, so the next cron run doesn't treat the same files
+    as new data and repeat the same work.
+    """
+    shutil.copy(
+        os.path.join(output_folder_path, 'ingestedfiles.txt'),
+        os.path.join(prod_deployment_path, 'ingestedfiles.txt'),
+    )
+
+
 def run_pipeline(run):
     """
     Run all functions in reasonable order, filling in `run` (see main())
-    along the way. Returns the run status: 'no_new_data', 'no_drift' or
-    'retrained'.
+    along the way. Returns the run status: 'no_new_data', 'no_drift',
+    'rejected' (retrained, but the new model scored lower, so it was not
+    deployed) or 'retrained'.
     """
     new_files = get_new_files()
     if not new_files:
@@ -111,19 +126,25 @@ def run_pipeline(run):
 
     if not drift_detected:
         print("[fullprocess] No model drift detected. Keeping the current model.")
-        # Mark the new files as seen, so the next cron run doesn't treat
-        # them as new data and repeat the same drift check.
-        shutil.copy(
-            os.path.join(output_folder_path, 'ingestedfiles.txt'),
-            os.path.join(prod_deployment_path, 'ingestedfiles.txt'),
-        )
+        mark_new_files_as_seen()
         return 'no_drift'
 
-    print("[fullprocess] Model drift detected. Retraining and redeploying...")
+    print("[fullprocess] Model drift detected. Retraining...")
     training.train_model()
-    run['new_model_score'] = scoring.score_model()
-    deployment.deploy_model()
     run['retrained'] = True
+    run['new_model_score'] = scoring.score_model()
+
+    # deployed_score and new_model_score are both F1 on the test data,
+    # so they are directly comparable.
+    if run['new_model_score'] < run['deployed_score']:
+        print(f"[fullprocess] Retrained model scores {run['new_model_score']}, "
+              f"lower than the deployed model's {run['deployed_score']}. "
+              "Keeping the current model.")
+        mark_new_files_as_seen()
+        return 'rejected'
+
+    print("[fullprocess] Retrained model is at least as good. Deploying...")
+    deployment.deploy_model()
     run['model_version'] = deployment.get_model_version()
 
     print("[fullprocess] Regenerating reporting artifacts for the new model...")

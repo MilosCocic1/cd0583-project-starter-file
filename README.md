@@ -14,8 +14,9 @@ when its score drops, and shows all of it on a live
 - **Ingests** new CSV files from a source folder, merges and de-duplicates them.
 - **Checks for model drift.** It scores the deployed model on the new data and
   compares the result with the score the model had when it was deployed.
-- **Retrains and redeploys** a logistic regression model when that score drops,
-  and gives every deployment a version number (v1, v2, ...).
+- **Retrains** a logistic regression model when that score drops, and **deploys
+  it only if it scores at least as well** on the test data as the current model.
+  Every deployment gets a version number (v1, v2, ...).
 - **Logs every pipeline run to MySQL**: status, scores, drift decision and model
   version. Failed runs are logged too.
 - **Serves a read-only JSON API** (Flask) that the dashboard polls every 30 seconds.
@@ -27,7 +28,7 @@ flowchart LR
     src[(sourcedata/*.csv)] --> pipe
 
     subgraph backend [backend/ · Python]
-        pipe["fullprocess.py<br/>ingest → drift check → retrain → deploy"]
+        pipe["fullprocess.py<br/>ingest → drift check → retrain → score gate → deploy"]
         api["Flask API<br/>/api/runs · /api/metrics · /api/drift · /api/health"]
     end
 

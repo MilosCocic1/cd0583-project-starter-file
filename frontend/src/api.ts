@@ -1,6 +1,6 @@
 // Types and fetch helpers for the backend's read-only JSON API (backend/api.py).
 
-export type RunStatus = 'no_new_data' | 'no_drift' | 'retrained' | 'failed'
+export type RunStatus = 'no_new_data' | 'no_drift' | 'rejected' | 'retrained' | 'failed'
 
 export interface PipelineRun {
   id: number
