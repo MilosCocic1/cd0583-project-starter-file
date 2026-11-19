@@ -65,6 +65,12 @@ has recorded: it never trains, scores or writes anything.
 The original endpoints (`/prediction`, `/scoring`, `/summarystats`,
 `/diagnostics`) are still available in [`backend/app.py`](backend/app.py).
 
+These endpoints have no authentication, and `/scoring` and `/diagnostics`
+write files and retrain the model. That is why `app.py` listens on
+`127.0.0.1` by default; set `FLASK_HOST=0.0.0.0` only on a trusted network.
+`/prediction` only reads `.csv` files inside the test, ingested and source
+data folders.
+
 ## Running it locally
 
 You need Python 3.11+, Node.js 22+ and a MySQL server.

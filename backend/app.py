@@ -10,6 +10,12 @@ without touching the scripts directly. Every endpoint returns HTTP 200.
 The read-only JSON API for the monitoring dashboard lives in api.py and
 is registered under /api.
 
+These endpoints have no authentication, and /scoring and /diagnostics
+write files and retrain the model, so the server listens on 127.0.0.1
+by default. Set FLASK_HOST=0.0.0.0 to expose it (e.g. inside a
+container), and only on a trusted network. /prediction only reads .csv
+files inside the project's data folders.
+
 Author: Miloš Ćoćić
 Date: 12.8.2026.
 """
@@ -29,6 +35,31 @@ app.register_blueprint(api)
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 
+# The only folders /prediction may read from.
+PREDICTION_DATA_DIRS = [
+    os.path.realpath(config[key])
+    for key in ('test_data_path', 'output_folder_path', 'input_folder_path')
+]
+
+
+def resolve_prediction_file(file_path):
+    """
+    Return the absolute path of file_path if it is an existing .csv file
+    inside one of PREDICTION_DATA_DIRS, otherwise None. Resolving the
+    real path first stops '../' tricks and symlinks from escaping those
+    folders, and URLs never resolve to a file inside them.
+    """
+    real_path = os.path.realpath(file_path)
+    if not real_path.lower().endswith('.csv') or not os.path.isfile(real_path):
+        return None
+    for data_dir in PREDICTION_DATA_DIRS:
+        try:
+            if os.path.commonpath([real_path, data_dir]) == data_dir:
+                return real_path
+        except ValueError:  # different drive on Windows
+            continue
+    return None
+
 
 @app.route('/prediction', methods=['POST'])
 def predict():
@@ -42,7 +73,14 @@ def predict():
     if not file_path:
         return jsonify({'error': 'filepath is required'}), 200
 
-    data = pd.read_csv(file_path)
+    safe_path = resolve_prediction_file(file_path)
+    if safe_path is None:
+        return jsonify({
+            'error': 'filepath must be an existing .csv file in the '
+                     'test, ingested or source data folder'
+        }), 200
+
+    data = pd.read_csv(safe_path)
     predictions = diagnostics.model_predictions(data)
     return jsonify({'predictions': predictions}), 200
 
@@ -80,7 +118,7 @@ def diagnostics_endpoint():
 
 if __name__ == '__main__':
     app.run(
-        host='0.0.0.0',
+        host=os.environ.get('FLASK_HOST', '127.0.0.1'),
         port=8000,
         debug=os.environ.get('FLASK_DEBUG') == '1',
         threaded=True,
